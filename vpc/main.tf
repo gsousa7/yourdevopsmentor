@@ -1,3 +1,8 @@
+locals {
+    public_cidr = ["10.0.1.0/24", "10.0.2.0/24"]
+    private_cidr = ["10.0.10.0/24", "10.0.20.0/24"]
+}
+
 resource "aws_vpc" "vpc_example" {
     cidr_block = "10.0.0.0/16"
     tags = {
@@ -5,35 +10,23 @@ resource "aws_vpc" "vpc_example" {
     }
 }
 
-resource "aws_subnet" "public_subnet1" {
+resource "aws_subnet" "public_subnet" {
+    count = 2
+
     vpc_id = aws_vpc.vpc_example.id
-    cidr_block = "10.0.1.0/24"
+    cidr_block = local.public_cidr[count.index]
     tags = {
-        Name = "public_subnet1"
+        Name = "public_subnet${count.index}"
     }
 }
 
-resource "aws_subnet" "public_subnet2" {
-    vpc_id = aws_vpc.vpc_example.id
-    cidr_block = "10.0.2.0/24"
-    tags = {
-        Name = "public_subnet2"
-    }
-}
+resource "aws_subnet" "private_subnet" {
+    count = 2
 
-resource "aws_subnet" "private_subnet1" {
     vpc_id = aws_vpc.vpc_example.id
-    cidr_block = "10.0.10.0/24"
+    cidr_block = local.private_cidr[count.index]
     tags = {
-        Name = "private_subnet1"
-    }
-}
-
-resource "aws_subnet" "private_subnet2" {
-    vpc_id = aws_vpc.vpc_example.id
-    cidr_block = "10.0.20.0/24"
-    tags = {
-        Name = "private_subnet2"
+        Name = "private_subnet${count.index}"
     }
 }
 
@@ -44,33 +37,22 @@ resource "aws_internet_gateway" "gw" {
     }
 }
 
-resource "aws_eip" "loadbalancer1" {
+resource "aws_eip" "loadbalancer" {
+    count = 2
+    
     vpc = true
     tags = {
-        Name = "loadbalancer1"
+        Name = "loadbalancer${count.index}"
     }
 }
 
-resource "aws_eip" "loadbalancer2" {
-    vpc = true
-    tags = {
-        Name = "loadbalancer2"
-    }
-}
+resource "aws_nat_gateway" "nat" {
+    count = 2
 
-resource "aws_nat_gateway" "nat1" {
-    allocation_id = aws_eip.loadbalancer1.id
-    subnet_id = aws_subnet.public_subnet1.id
+    allocation_id = aws_eip.loadbalancer[count.index].id
+    subnet_id = aws_subnet.public_subnet[count.index].id
     tags = {
-        Name = "nat1"
-    }
-}
-
-resource "aws_nat_gateway" "nat2" {
-    allocation_id = aws_eip.loadbalancer2.id
-    subnet_id = aws_subnet.public_subnet2.id
-    tags = {
-        Name = "nat2"
+        Name = "nat${count.index}"
     }
 }
 
@@ -86,46 +68,30 @@ resource "aws_route_table" "public_route_table" {
     }
 }
 
-resource "aws_route_table" "private_route_table1" {
+resource "aws_route_table" "private_route_table" {
+    count = 2
+    
     vpc_id = aws_vpc.vpc_example.id
 
     route {
         cidr_block = "0.0.0.0/0"
-        nat_gateway_id = aws_nat_gateway.nat1.id
+        nat_gateway_id = aws_nat_gateway.nat[count.index].id
     }
     tags = {
-        Name = "private_route_table1"
+        Name = "private_route_table${count.index}"
     }
 }
 
-resource "aws_route_table" "private_route_table2" {
-    vpc_id = aws_vpc.vpc_example.id
+resource "aws_route_table_association" "public_route_association" {
+    count = 2
 
-    route {
-        cidr_block = "0.0.0.0/0"
-        nat_gateway_id = aws_nat_gateway.nat2.id
-    }
-    tags = {
-        Name = "private_route_table2"
-    }
-}
-
-resource "aws_route_table_association" "public_route_association1" {
-    subnet_id = aws_subnet.public_subnet1.id
+    subnet_id = aws_subnet.public_subnet[count.index].id
     route_table_id = aws_route_table.public_route_table.id
 }
 
-resource "aws_route_table_association" "public_route_association2" {
-    subnet_id = aws_subnet.public_subnet2.id
-    route_table_id = aws_route_table.public_route_table.id
-}
+resource "aws_route_table_association" "private_route_association" {
+    count = 2
 
-resource "aws_route_table_association" "private_route_association1" {
-    subnet_id = aws_subnet.private_subnet1.id
-    route_table_id = aws_route_table.private_route_table1.id
-}
-
-resource "aws_route_table_association" "private_route_association2" {
-    subnet_id = aws_subnet.private_subnet2.id
-    route_table_id = aws_route_table.private_route_table2.id
+    subnet_id = aws_subnet.private_subnet[count.index].id
+    route_table_id = aws_route_table.private_route_table[count.index].id
 }
