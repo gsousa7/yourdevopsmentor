@@ -11,7 +11,7 @@ resource "aws_vpc" "vpc_example" {
 }
 
 resource "aws_subnet" "public_subnet" {
-    count = 4
+    count = length(local.public_cidr)
 
     vpc_id = aws_vpc.vpc_example.id
     cidr_block = local.public_cidr[count.index]
